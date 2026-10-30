@@ -31,7 +31,7 @@ def main():
     sequences = {}
     links = []
     for release in releases:
-        assert set(release) == {'Version', 'Tag', 'Assets', 'SourceProvenance'}
+        assert set(release) == {'Version', 'Tag', 'SourceTag', 'Assets', 'SourceProvenance'}
         version = release['Version']
         assert re.fullmatch(r'\d+\.\d+\.\d+', version) and version not in versions
         versions.add(version)
@@ -39,6 +39,11 @@ def main():
         remote = json.loads(run('gh', 'api', f'repos/{REPOSITORY}/releases/tags/{release["Tag"]}'))
         assert remote.get('immutable') is True and not remote['draft'] and not remote['prerelease']
         remote_assets = {a['name']: a for a in remote['assets']}
+        source_tag = release['SourceTag']
+        assert isinstance(source_tag, str) and re.fullmatch(r'source-[A-Za-z0-9._-]{1,80}', source_tag)
+        source_remote = json.loads(run('gh', 'api', f'repos/{REPOSITORY}/releases/tags/{source_tag}'))
+        assert source_remote.get('immutable') is True and not source_remote['draft'] and not source_remote['prerelease']
+        source_assets = {a['name']: a for a in source_remote['assets']}
         assets = release['Assets']
         assert set(assets) == {'Guardly.AppImage', 'consumer.tar.gz', 'source.tar.gz', 'NOTICE.txt'}
         directory = site / 'releases' / version
@@ -47,7 +52,7 @@ def main():
             assert set(expected) == {'Sha256', 'ByteLength'}
             assert re.fullmatch('[a-f0-9]{64}', expected['Sha256'])
             assert type(expected['ByteLength']) is int and 0 < expected['ByteLength'] < 2**31
-            asset = remote_assets[name]
+            asset = source_assets[name] if name == 'source.tar.gz' else remote_assets[name]
             assert asset['size'] == expected['ByteLength'] and asset['digest'] == 'sha256:' + expected['Sha256']
             if name == 'source.tar.gz':
                 continue
@@ -85,7 +90,7 @@ def main():
                 assert member(name, 4_000_000)
         # Consumer/source archives remain on Releases; updater AppImages remain direct on Pages.
         (directory / 'consumer.tar.gz').unlink()
-        source_url = f'https://github.com/{REPOSITORY}/releases/download/{release["Tag"]}/source.tar.gz'
+        source_url = f'https://github.com/{REPOSITORY}/releases/download/{source_tag}/source.tar.gz'
         consumer_url = f'https://github.com/{REPOSITORY}/releases/download/{release["Tag"]}/consumer.tar.gz'
         links.append(f'<li>{html.escape(version)}: <a href="{consumer_url}">Linux managed installer download</a> '
                      f'<a href="releases/{version}/Guardly.AppImage">AppImage</a> '

@@ -39,7 +39,9 @@ class DeliveryTests(unittest.TestCase):
              'notices/inventory.json', 'notices/LICENSE', 'notices/THIRD_PARTY_NOTICES.md')}}
         self.remote = {'v0.1.0': {'Guardly.AppImage': self.image, 'consumer.tar.gz': self.bundle(),
             'source.tar.gz': b'fixture source', 'NOTICE.txt': b'fixture notices'}}
+        self.remote['source-v0.1.0-v0.1.1'] = {'source.tar.gz': self.remote['v0.1.0']['source.tar.gz']}
         self.catalog = {'SchemaVersion': 1, 'Releases': [{'Version': '0.1.0', 'Tag': 'v0.1.0',
+            'SourceTag': 'source-v0.1.0-v0.1.1',
             'SourceProvenance': 'fixture revision', 'Assets': self.identities(self.remote['v0.1.0'])}], 'Stable': None}
         self.immutable = True
         self.renew('metadata-v0.1.0-r0000', dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=3))
@@ -96,10 +98,29 @@ class DeliveryTests(unittest.TestCase):
         self.assertEqual(binary, Path('site/releases/0.1.0/Guardly.AppImage').read_bytes())
         self.assertNotEqual(previous, Path('site/stable/manifest.json').read_bytes())
         self.assertIn('consumer.tar.gz', Path('site/index.html').read_text())
+        self.assertIn('/source-v0.1.0-v0.1.1/source.tar.gz', Path('site/index.html').read_text())
         self.assertFalse(Path('site/releases/0.1.0/consumer.tar.gz').exists())
 
     def test_expired_metadata_rejected(self):
         self.renew('metadata-v0.1.0-r0001', dt.datetime.now(dt.timezone.utc) - dt.timedelta(seconds=1))
+        with self.assertRaises(AssertionError): self.build()
+
+    def test_two_binary_versions_reference_one_common_source_asset(self):
+        config = json.dumps(dict(self.authority, BootstrapVersion='0.1.1', BootstrapSequence=2)).encode()
+        self.bundle_files['update-channel.json'] = config
+        receipt = json.loads(self.bundle_files['installation.json'])
+        receipt['channelSha256'] = self.digest(config)
+        self.bundle_files['installation.json'] = json.dumps(receipt).encode()
+        self.remote['v0.1.1'] = {**self.remote['v0.1.0'], 'consumer.tar.gz': self.bundle()}
+        self.catalog['Releases'].append({'Version': '0.1.1', 'Tag': 'v0.1.1',
+            'SourceTag': 'source-v0.1.0-v0.1.1', 'SourceProvenance': 'fixture common source with exact version delta',
+            'Assets': self.identities(self.remote['v0.1.1'])})
+        self.build()
+        index = Path('site/index.html').read_text()
+        self.assertEqual(index.count('href="https://github.com/' + build.REPOSITORY + '/releases/download/source-v0.1.0-v0.1.1/source.tar.gz"'), 2)
+
+    def test_common_source_digest_must_match_catalog(self):
+        self.remote['source-v0.1.0-v0.1.1']['source.tar.gz'] = b'different source'
         with self.assertRaises(AssertionError): self.build()
 
     def test_signed_wrong_binary_url_rejected(self):
