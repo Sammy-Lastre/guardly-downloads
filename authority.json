@@ -1,0 +1,12 @@
+{
+  "SchemaVersion": 1,
+  "Configured": true,
+  "AppId": "io.guardly.desktop",
+  "RuntimeIdentifier": "linux-x64",
+  "BootstrapVersion": "0.1.0",
+  "BootstrapSequence": 1,
+  "ManifestUrl": "https://sammy-lastre.github.io/guardly-downloads/stable/manifest.json",
+  "SignatureUrl": "https://sammy-lastre.github.io/guardly-downloads/stable/signature.der",
+  "PinnedKeySpkiBase64": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEXhlvGMAg4NSu5XAqzBq51NyWnPennQm6Pxp6I7pU1poyeYIxI2hLRnvbAdtSqD5XqCGmCSoUMFq8dlcPiqGmXg==",
+  "AllowLoopbackHttpForTests": false
+}
